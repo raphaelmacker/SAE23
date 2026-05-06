@@ -124,10 +124,10 @@ newgrp docker
 
 ### Étape 3 — Récupérer le projet
 
-Copier le fichier `sae23_portfolio_flask.zip` dans la VM, puis :
+Copier le fichier `SAE23-main.zip` dans la VM, puis :
 
 ```bash
-unzip sae23_portfolio_flask.zip
+unzip SAE23-main.zip
 cd sae23
 ```
 
@@ -146,7 +146,7 @@ Pour y accéder depuis la machine hôte, trouver l'IP de la VM :
 ip a
 ```
 
-Puis ouvrir **http://[IP-DE-LA-VM]:5000** dans le navigateur.
+Puis ouvrir **http://[]:5000** dans le navigateur.
 
 ### Étape 5 — Arrêter le projet
 
