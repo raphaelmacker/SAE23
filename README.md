@@ -124,10 +124,10 @@ newgrp docker
 
 ### Étape 3 — Récupérer le projet
 
-Copier le fichier `SAE23-main.zip` dans la VM, puis :
+Copier le fichier `sae23_portfolio_flask.zip` dans la VM, puis :
 
 ```bash
-unzip SAE23-main.zip
+unzip sae23_portfolio_flask.zip
 cd sae23
 ```
 
@@ -146,7 +146,7 @@ Pour y accéder depuis la machine hôte, trouver l'IP de la VM :
 ip a
 ```
 
-Puis ouvrir **http://[]:5000** dans le navigateur.
+Puis ouvrir **http://[IP-DE-LA-VM]:5000** dans le navigateur.
 
 ### Étape 5 — Arrêter le projet
 
@@ -184,25 +184,66 @@ dial tcp 44.220.103.105:443: i/o timeout
 ```
 **Cause :** La VM n'a pas accès à Internet, ou le réseau de l'IUT utilise un proxy.  
 **Solution 1 :** Vérifier que la carte réseau est en mode **NAT** dans VirtualBox.  
-**Solution 2 :** Si un proxy est requis, l'ajouter dans `docker-compose.yml` :
+**Solution 2 :** Configurer le proxy de l'IUT (Artois) sur Ubuntu et Docker.
 
+Le proxy de l'IUT est : `http://cache-etu.univ-artois.fr:3128`
+
+**2a. Proxy pour le terminal (temporaire, valable le temps de la session) :**
+```bash
+export http_proxy=http://cache-etu.univ-artois.fr:3128
+export https_proxy=http://cache-etu.univ-artois.fr:3128
+```
+
+**2b. Proxy permanent pour le terminal (persistant après redémarrage) :**
+```bash
+nano ~/.bashrc
+```
+Ajouter ces deux lignes à la fin du fichier :
+```bash
+export http_proxy=http://cache-etu.univ-artois.fr:3128
+export https_proxy=http://cache-etu.univ-artois.fr:3128
+```
+Puis recharger sans redémarrer :
+```bash
+source ~/.bashrc
+```
+
+**2c. Proxy pour Docker (pour que Docker puisse télécharger les images) :**
+```bash
+sudo mkdir -p /etc/systemd/system/docker.service.d
+sudo nano /etc/systemd/system/docker.service.d/proxy.conf
+```
+Coller dans le fichier :
+```
+[Service]
+Environment="HTTP_PROXY=http://cache-etu.univ-artois.fr:3128"
+Environment="HTTPS_PROXY=http://cache-etu.univ-artois.fr:3128"
+```
+Puis redémarrer Docker :
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+```
+
+**2d. Proxy dans `docker-compose.yml`** (pour que pip dans le conteneur puisse télécharger les paquets) :
 ```yaml
 web:
   build:
     context: .
     args:
-      - HTTP_PROXY=http://adresse-proxy:port
-      - HTTPS_PROXY=http://adresse-proxy:port
+      - HTTP_PROXY=http://cache-etu.univ-artois.fr:3128
+      - HTTPS_PROXY=http://cache-etu.univ-artois.fr:3128
 ```
 
-Et dans le `Dockerfile`, après `FROM python:3.12-slim` :
-
+**2e. Proxy dans le `Dockerfile`**, après `FROM python:3.12-slim` :
 ```dockerfile
 ARG HTTP_PROXY
 ARG HTTPS_PROXY
 ENV http_proxy=$HTTP_PROXY
 ENV https_proxy=$HTTPS_PROXY
 ```
+
+> ⚠️ Les étapes 2c, 2d et 2e sont toutes les trois nécessaires pour que ça fonctionne complètement à l'IUT.
 
 ---
 
