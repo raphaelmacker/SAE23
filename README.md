@@ -74,37 +74,6 @@ sae23/
 
 ---
 
-## Lancement avec Docker (recommandé)
-
-```bash
-# Cloner le repo
-git clone https://github.com/raphael-macker/sae23-portfolio-flask
-cd sae23-portfolio-flask
-
-# Construire et démarrer les deux conteneurs (MySQL + Flask)
-docker-compose up --build
-
-# Le site est accessible sur http://localhost:5000
-```
-
-## Lancement en local (développement)
-
-```bash
-# Installer les dépendances
-pip install -r requirements.txt
-
-# Variables d'environnement pour la base de données
-export MYSQL_HOST=localhost
-export MYSQL_USER=raphael
-export MYSQL_PASSWORD=password
-export MYSQL_DATABASE=portfolio
-
-# Lancer Flask
-python app.py
-```
-
----
-
 ## Pages du site
 
 | URL | Description | Accès |
@@ -124,17 +93,125 @@ python app.py
 |-------------|-------------|
 | `admin` | `admin123` |
 
-> ⚠️ À changer avant tout déploiement en production via la variable `SECRET_KEY` dans `docker-compose.yml`.
+> ⚠️ À changer avant tout déploiement en production.
 
 ---
 
-## Sécurité
+## Installation et lancement (VM Ubuntu)
 
-- **Mots de passe hashés** avec Werkzeug (algorithme bcrypt)
-- **Espace admin protégé** par un décorateur `@login_required` sur chaque route sensible
-- **Pas d'injection SQL** possible grâce à l'ORM SQLAlchemy (requêtes paramétrées)
-- **Validation serveur** des niveaux d'acquisition (whitelist, jamais de valeur libre)
-- **Sessions sécurisées** Flask avec clé secrète configurée via variable d'environnement
+### Étape 1 — Préparer la VM
+
+Le projet tourne sur une **VM Ubuntu** (VirtualBox ou VMware).  
+La carte réseau doit être en mode **NAT** pour avoir accès à Internet.
+
+> Dans VirtualBox : clic droit sur la VM → Configuration → Réseau → Mode d'accès réseau : **NAT**
+
+### Étape 2 — Installer Docker
+
+Dans le terminal de la VM :
+
+```bash
+sudo apt update
+sudo apt install docker.io docker-compose -y
+sudo usermod -aG docker $USER
+```
+
+Fermer et rouvrir le terminal pour appliquer les droits, ou faire :
+
+```bash
+newgrp docker
+```
+
+### Étape 3 — Récupérer le projet
+
+Copier le fichier `sae23_portfolio_flask.zip` dans la VM, puis :
+
+```bash
+unzip sae23_portfolio_flask.zip
+cd sae23
+```
+
+### Étape 4 — Lancer le projet
+
+```bash
+sudo docker-compose up --build
+```
+
+La première fois ça prend 2-5 minutes (téléchargement des images Docker).  
+Le site est ensuite accessible sur **http://localhost:5000** depuis la VM.
+
+Pour y accéder depuis la machine hôte, trouver l'IP de la VM :
+
+```bash
+ip a
+```
+
+Puis ouvrir **http://[IP-DE-LA-VM]:5000** dans le navigateur.
+
+### Étape 5 — Arrêter le projet
+
+```bash
+# Ctrl+C dans le terminal, puis :
+sudo docker-compose down
+```
+
+### Relancer après un arrêt (sans rebuild)
+
+```bash
+sudo docker-compose up
+```
+
+---
+
+## Problèmes rencontrés et solutions
+
+### ❌ Permission denied sur Docker
+```
+PermissionError: [Errno 13] Permission denied
+```
+**Solution :**
+```bash
+sudo usermod -aG docker $USER
+# Fermer et rouvrir le terminal, puis relancer avec sudo :
+sudo docker-compose up --build
+```
+
+---
+
+### ❌ Impossible de télécharger les images (timeout réseau)
+```
+dial tcp 44.220.103.105:443: i/o timeout
+```
+**Cause :** La VM n'a pas accès à Internet, ou le réseau de l'IUT utilise un proxy.  
+**Solution 1 :** Vérifier que la carte réseau est en mode **NAT** dans VirtualBox.  
+**Solution 2 :** Si un proxy est requis, l'ajouter dans `docker-compose.yml` :
+
+```yaml
+web:
+  build:
+    context: .
+    args:
+      - HTTP_PROXY=http://adresse-proxy:port
+      - HTTPS_PROXY=http://adresse-proxy:port
+```
+
+Et dans le `Dockerfile`, après `FROM python:3.12-slim` :
+
+```dockerfile
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV http_proxy=$HTTP_PROXY
+ENV https_proxy=$HTTPS_PROXY
+```
+
+---
+
+### ❌ Flask démarre avant que MySQL soit prêt
+```
+sqlalchemy.exc.OperationalError: Can't connect to MySQL server on 'db'
+```
+**Cause :** Flask essaie de se connecter à MySQL avant qu'il ait fini de démarrer.  
+**Solution :** Le bloc d'initialisation dans `app.py` inclut une boucle de retry qui retente la connexion toutes les 3 secondes jusqu'à 10 fois.
 
 ---
 
@@ -152,3 +229,13 @@ python app.py
 | Docker | 10 | ✅ `Dockerfile` + `docker-compose.yml` |
 | Sécurité | 10 | ✅ Hash, ORM, whitelist, sessions |
 | Présentation | 10 | — |
+
+---
+
+## Sécurité
+
+- **Mots de passe hashés** avec Werkzeug (algorithme bcrypt)
+- **Espace admin protégé** par un décorateur `@login_required` sur chaque route sensible
+- **Pas d'injection SQL** possible grâce à l'ORM SQLAlchemy (requêtes paramétrées)
+- **Validation serveur** des niveaux d'acquisition (whitelist, jamais de valeur libre)
+- **Sessions sécurisées** Flask avec clé secrète configurée via variable d'environnement
