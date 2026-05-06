@@ -159,6 +159,8 @@ sudo docker compose down
 
 ```bash
 sudo docker compose up
+ou
+sudo docker compose up -d
 ```
 
 ---
