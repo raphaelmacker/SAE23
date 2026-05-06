@@ -134,7 +134,7 @@ cd sae23
 ### Étape 4 — Lancer le projet
 
 ```bash
-sudo docker-compose up --build
+sudo docker compose up --build
 ```
 
 La première fois ça prend 2-5 minutes (téléchargement des images Docker).  
@@ -152,13 +152,13 @@ Puis ouvrir **http://[IP-DE-LA-VM]:5000** dans le navigateur.
 
 ```bash
 # Ctrl+C dans le terminal, puis :
-sudo docker-compose down
+sudo docker compose down
 ```
 
 ### Relancer après un arrêt (sans rebuild)
 
 ```bash
-sudo docker-compose up
+sudo docker compose up
 ```
 
 ---
@@ -173,7 +173,7 @@ PermissionError: [Errno 13] Permission denied
 ```bash
 sudo usermod -aG docker $USER
 # Fermer et rouvrir le terminal, puis relancer avec sudo :
-sudo docker-compose up --build
+sudo docker compose up --build
 ```
 
 ---
@@ -247,36 +247,38 @@ ENV https_proxy=$HTTPS_PROXY
 
 ---
 
+### ⚠️ Erreur dans les logs au lancement (thread `watch_events`)
+```
+Exception in thread Thread-7 (watch_events):
+KeyError: 'id'
+```
+**Cause :** Bug connu de l'ancienne version `docker-compose` v1 (écrite en Python), qui ne gère pas certains types d'événements Docker modernes. Le site fonctionne normalement malgré cette erreur, mais elle peut être gênante.
+
+**Solution :** Passer à Docker Compose v2 (plugin officiel, écrit en Go) :
+
+```bash
+sudo apt install curl
+
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt-get update
+sudo apt-get install docker-compose-plugin
+```
+
+Vérifier l'installation :
+```bash
+docker compose version
+```
+
+> ℹ️ Avec la v2, la commande devient `docker compose` (sans tiret) au lieu de `docker-compose`. Les fichiers `docker-compose.yml` et la configuration existante restent identiques, rien n'est à modifier.
+
+---
+
 ### ❌ Flask démarre avant que MySQL soit prêt
 ```
 sqlalchemy.exc.OperationalError: Can't connect to MySQL server on 'db'
 ```
 **Cause :** Flask essaie de se connecter à MySQL avant qu'il ait fini de démarrer.  
 **Solution :** Le bloc d'initialisation dans `app.py` inclut une boucle de retry qui retente la connexion toutes les 3 secondes jusqu'à 10 fois.
-
----
-
-## Barème couvert
-
-| Critère | Points | Couvert |
-|---------|--------|---------|
-| Système de templates Flask | 10 | ✅ `base.html` + héritage Jinja2 |
-| Code organisé et lisible | 10 | ✅ Routes, modèles, helpers séparés |
-| Base de données + modèles | 10 | ✅ SQLAlchemy, 3 entités + User |
-| Intégration BDD/Flask | 10 | ✅ Requêtes ORM, jointures |
-| Authentification + espace protégé | 10 | ✅ Session + `@login_required` |
-| Formulaire ajout/validation | 10 | ✅ `/admin/valider` avec filtre JS |
-| Interface affichage/suppression | 10 | ✅ Dashboard admin |
-| Docker | 10 | ✅ `Dockerfile` + `docker-compose.yml` |
-| Sécurité | 10 | ✅ Hash, ORM, whitelist, sessions |
-| Présentation | 10 | — |
-
----
-
-## Sécurité
-
-- **Mots de passe hashés** avec Werkzeug (algorithme bcrypt)
-- **Espace admin protégé** par un décorateur `@login_required` sur chaque route sensible
-- **Pas d'injection SQL** possible grâce à l'ORM SQLAlchemy (requêtes paramétrées)
-- **Validation serveur** des niveaux d'acquisition (whitelist, jamais de valeur libre)
-- **Sessions sécurisées** Flask avec clé secrète configurée via variable d'environnement
