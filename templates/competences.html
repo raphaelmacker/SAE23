@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Compétences{% endblock %}
+
+{% block content %}
+
+<section class="page-hero">
+  <div class="container">
+    <div class="page-hero-inner reveal">
+      <div class="section-tag">Référentiel BUT RT</div>
+      <h1 class="section-title">Récapitulatif<br>des <em>compétences</em></h1>
+      <p class="section-sub">Apprentissages critiques acquis au fil des semestres.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container">
+    {% for semestre in semestres %}
+    <div class="sem-block reveal" style="transition-delay:{{ loop.index0 * 0.05 }}s">
+      <div class="sem-header">
+        <div class="sem-badge">{{ semestre.code }}</div>
+        <h2 class="sem-title">{{ semestre.nom }}</h2>
+      </div>
+
+      {% for bloc in semestre.blocs %}
+      <div class="bloc-section">
+        <div class="bloc-header">
+          <span class="bloc-code">{{ bloc.code }}</span>
+          <span class="bloc-nom">{{ bloc.nom }}</span>
+          {% set acquis = bloc.competences|selectattr('niveau','in',['acquis','expert'])|list|length %}
+          {% set total  = bloc.competences|length %}
+          <span class="bloc-progress">{{ acquis }}/{{ total }}</span>
+        </div>
+
+        <div class="comp-table-wrap">
+          <table class="comp-table">
+            <thead>
+              <tr>
+                <th>Code</th>
+                <th>Apprentissage critique</th>
+                <th>Niveau</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for comp in bloc.competences %}
+              {% set niveau_data = niveaux_map.get(comp.niveau, ('Non acquis','niveau-na')) %}
+              <tr>
+                <td><span class="comp-code-badge">{{ comp.code }}</span></td>
+                <td class="comp-nom">{{ comp.nom }}</td>
+                <td>
+                  <span class="niveau-badge {{ niveau_data[1] }}">{{ niveau_data[0] }}</span>
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{% endblock %}
