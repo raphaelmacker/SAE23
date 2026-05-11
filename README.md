@@ -431,31 +431,3 @@ Can't connect to MySQL server on 'db'
 ```
 
 **Solution :** Déjà géré dans `app.py` avec une boucle qui retente la connexion 10 fois toutes les 3 secondes.
-
------
-
-# PARTIE 8 — SÉCURITÉ
-
-|Menace                             |Protection mise en place                                |
-|-----------------------------------|--------------------------------------------------------|
-|Mot de passe en clair              |Hash bcrypt via `generate_password_hash`                |
-|Injection SQL                      |ORM SQLAlchemy (jamais de SQL brut)                     |
-|Accès admin sans connexion         |Vérification `session['user_id']` sur chaque route admin|
-|Valeur falsifiée dans le formulaire|Whitelist des niveaux autorisés côté serveur            |
-
------
-
-# PARTIE 9 — BARÈME
-
-|Critère                          |Points|Fait ?                                         |
-|---------------------------------|------|-----------------------------------------------|
-|Système de templates Flask       |10    |✅ `base.html` + héritage dans toutes les pages |
-|Code organisé                    |10    |✅ Modèles / routes / templates bien séparés    |
-|Base de données + modèles        |10    |✅ 3 tables liées + table User                  |
-|Intégration BDD/Flask            |10    |✅ SQLAlchemy, requêtes, jointures              |
-|Authentification + espace protégé|10    |✅ Session + vérification sur chaque route admin|
-|Formulaire validation compétence |10    |✅ `/admin/valider`                             |
-|Interface affichage + suppression|10    |✅ Dashboard admin                              |
-|Docker                           |10    |✅ Dockerfile + docker-compose.yml              |
-|Sécurité                         |10    |✅ Hash, ORM, whitelist, sessions               |
-|Présentation                     |10    |—                                              |
