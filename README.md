@@ -591,21 +591,6 @@ sudo docker-compose up
 
 # PARTIE 7 — PROBLÈMES RENCONTRÉS
 
-### Permission denied sur Docker
-
-```
-PermissionError: [Errno 13] Permission denied
-```
-
-**Solution :** `sudo usermod -aG docker $USER` puis fermer/rouvrir le terminal.
-
-### Timeout réseau (images Docker)
-
-```
-dial tcp: i/o timeout
-```
-
-**Solution :** Vérifier mode NAT dans VirtualBox + configurer le proxy (Partie 6 Étape 3).
 
 ### Flask démarre avant MySQL
 
