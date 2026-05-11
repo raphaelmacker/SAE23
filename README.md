@@ -316,6 +316,204 @@ services:
 
 **Pourquoi deux services ?** La consigne demande un serveur BDD et un serveur HTTP séparés. `depends_on` avec `service_healthy` assure que MySQL est complètement démarré avant que Flask essaie de s’y connecter.
 
+
+## requirements.txt
+
+```
+Flask==3.0.3
+Flask-SQLAlchemy==3.1.1
+PyMySQL==1.1.1
+cryptography==42.0.8
+Werkzeug==3.0.3
+```
+
+**C'est quoi ce fichier ?** C'est la liste de toutes les bibliothèques Python dont le projet a besoin. Quand Docker construit le conteneur Flask, il lit ce fichier et installe tout avec `pip install -r requirements.txt`.
+
+**Chaque ligne :**
+- `Flask` : le framework web principal
+- `Flask-SQLAlchemy` : l'extension qui connecte Flask à la base de données
+- `PyMySQL` : le driver Python qui permet de parler à MySQL (c'est lui qui fait la vraie connexion)
+- `cryptography` : requis par PyMySQL pour les connexions sécurisées à MySQL
+- `Werkzeug` : fourni avec Flask, on l'utilise pour hasher les mots de passe
+
+**Pourquoi fixer les versions (ex: `==3.0.3`) ?** Pour que le projet fonctionne toujours de la même façon, même dans 6 mois. Si on ne fixe pas les versions, une mise à jour automatique pourrait casser quelque chose.
+
+---
+
+## Dockerfile
+
+```dockerfile
+FROM python:3.12-slim
+```
+On part d'une image Docker officielle Python légère. `slim` veut dire qu'elle ne contient que le strict minimum (pas d'outils inutiles), ce qui rend le conteneur plus petit.
+
+```dockerfile
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV http_proxy=$HTTP_PROXY
+ENV https_proxy=$HTTPS_PROXY
+```
+Ces lignes servent à configurer le proxy de l'IUT **pendant la construction** du conteneur. Sans ça, `pip install` ne peut pas télécharger les bibliothèques depuis le réseau de l'IUT.
+- `ARG` : reçoit la valeur passée depuis `docker-compose.yml`
+- `ENV` : la rend disponible pour toutes les commandes qui suivent
+
+```dockerfile
+WORKDIR /app
+```
+Définit `/app` comme dossier de travail dans le conteneur. Toutes les commandes suivantes s'exécutent depuis ce dossier.
+
+```dockerfile
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+```
+On copie d'abord **seulement** `requirements.txt` et on installe les dépendances. Pourquoi pas tout copier d'un coup ? Pour optimiser le cache Docker : si le code change mais pas les dépendances, Docker ne réinstalle pas tout.
+
+```dockerfile
+COPY . .
+```
+Copie tout le reste du projet (app.py, templates, static...) dans `/app`.
+
+```dockerfile
+EXPOSE 5000
+CMD ["python", "-m", "flask", "run", "--host=0.0.0.0", "--port=5000"]
+```
+- `EXPOSE 5000` : documente que le conteneur utilise le port 5000
+- `CMD` : la commande lancée quand le conteneur démarre. `--host=0.0.0.0` est important : sans ça, Flask n'écoute que sur `localhost` à l'intérieur du conteneur et n'est pas accessible de l'extérieur.
+
+---
+
+## docker-compose.yml
+
+Ce fichier définit et orchestre les **deux serveurs** du projet.
+
+### Le serveur de base de données
+
+```yaml
+db:
+  image: mysql:8.4
+  container_name: portfolio_db
+  restart: unless-stopped
+  environment:
+    MYSQL_ROOT_PASSWORD: rootpassword
+    MYSQL_DATABASE: portfolio
+    MYSQL_USER: raphael
+    MYSQL_PASSWORD: password
+```
+- `image: mysql:8.4` : on utilise l'image officielle MySQL version 8.4, pas besoin de l'installer manuellement
+- `restart: unless-stopped` : si MySQL plante, Docker le redémarre automatiquement
+- `environment` : les variables que MySQL utilise pour créer la base de données et l'utilisateur au premier démarrage
+
+```yaml
+  volumes:
+    - mysql_data:/var/lib/mysql
+```
+Les données MySQL sont sauvegardées dans un **volume Docker**. Sans ça, toutes les données seraient perdues à chaque `docker-compose down`.
+
+```yaml
+  healthcheck:
+    test: ["CMD", "mysqladmin", "ping", ...]
+    interval: 10s
+    retries: 5
+```
+Docker vérifie toutes les 10 secondes si MySQL répond vraiment. Tant que MySQL n'est pas "healthy", Flask ne démarre pas (grâce à `depends_on`).
+
+### Le serveur Flask
+
+```yaml
+web:
+  build:
+    context: .
+    args:
+      - HTTP_PROXY=http://cache-etu.univ-artois.fr:3128
+      - HTTPS_PROXY=http://cache-etu.univ-artois.fr:3128
+```
+- `build: context: .` : Docker construit l'image en lisant le `Dockerfile` dans le dossier actuel
+- `args` : passe le proxy au Dockerfile pour que `pip install` puisse accéder à Internet à l'IUT
+
+```yaml
+  environment:
+    FLASK_APP: app.py
+    MYSQL_HOST: db
+    MYSQL_USER: raphael
+    MYSQL_PASSWORD: password
+```
+- `FLASK_APP` : dit à Flask quel fichier lancer
+- `MYSQL_HOST: db` : le nom `db` correspond au nom du service MySQL défini plus haut. Docker Compose crée un réseau interne entre les conteneurs, donc `db` est l'adresse de MySQL vue depuis Flask.
+
+```yaml
+  ports:
+    - "5000:5000"
+```
+Redirige le port 5000 de la VM vers le port 5000 du conteneur. Format : `PORT_VM:PORT_CONTENEUR`.
+
+```yaml
+  depends_on:
+    db:
+      condition: service_healthy
+```
+Flask attend que MySQL soit complètement prêt (healthcheck OK) avant de démarrer.
+
+---
+
+## database.sql
+
+C'est une **sauvegarde complète** de la base de données générée avec `mysqldump`. Elle contient :
+- Les instructions `CREATE TABLE` pour créer toutes les tables
+- Les instructions `INSERT INTO` pour remettre toutes les données
+
+**À quoi ça sert ?** C'est utile pour restaurer la BDD si besoin, ou pour montrer au prof la structure exacte des tables avec les vraies contraintes SQL (clés primaires, clés étrangères...).
+
+**Par exemple, la table `competences` :**
+```sql
+CREATE TABLE `competences` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `code` varchar(30) NOT NULL,
+  `nom` varchar(300) NOT NULL,
+  `niveau` varchar(50) NOT NULL,
+  `bloc_id` int NOT NULL,
+  PRIMARY KEY (`id`),
+  FOREIGN KEY (`bloc_id`) REFERENCES `blocs` (`id`)
+);
+```
+On voit clairement la clé étrangère `bloc_id` qui pointe vers la table `blocs` — exactement ce que demande la consigne.
+
+---
+
+## config.py
+
+```python
+PROFILE = {
+    "nom":         "Raphaël Macker",
+    "formation":   "BUT Réseaux & Télécommunications",
+    "email":       "raphael.macker@example.com",
+    ...
+}
+```
+
+**C'est quoi ce fichier ?** Un fichier de configuration qui regroupe toutes les informations personnelles du profil étudiant en un seul endroit.
+
+**Pourquoi ne pas mettre ces infos directement dans `app.py` ou dans le HTML ?** La consigne demande explicitement un *"fichier de configuration facile à manipuler"*. L'idée c'est que si je veux changer mon email ou ma description, je modifie juste ce fichier sans toucher au code ou aux templates.
+
+**Comment il est utilisé ?** Dans `app.py` on importe ce fichier :
+```python
+from config import PROFILE
+```
+Puis on passe `PROFILE` aux templates pour afficher les infos sur la page d'accueil.
+
+---
+
+## static/css/style.css
+
+**C'est quoi ce fichier ?** C'est le fichier CSS qui gère tout l'aspect visuel du site : couleurs, polices, mise en page, boutons, tableaux...
+
+**Pourquoi il est dans `static/` ?** Flask sert les fichiers du dossier `static/` directement au navigateur, sans les traiter. C'est le bon endroit pour tout ce qui ne change pas dynamiquement : CSS, images, JavaScript.
+
+**Comment il est chargé dans les pages ?** Dans `base.html` avec la ligne :
+```html
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+```
+`url_for('static', ...)` génère automatiquement le bon chemin vers le fichier, peu importe où le site est hébergé.
+
 -----
 
 # PARTIE 6 — INSTALLATION ET LANCEMENT
